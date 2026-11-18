@@ -90,6 +90,8 @@ export async function getIssues(opts: { clientId?: string } = {}) {
     : [{ data: [] }, { data: [] }];
   return (issues ?? []).map((i) => ({
     ...i,
+    lastProblemOn: i.last_problem_on as string,
+    lastEvidenceOn: i.last_evidence_on as string,
     evidence: (evidence ?? []).filter((e) => e.issue_id === i.id),
     events: (events ?? []).filter((e) => e.issue_id === i.id),
   }));
