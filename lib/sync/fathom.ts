@@ -10,7 +10,13 @@ export const fathomAccounts = () => [1, 2].filter((n) => !!process.env[n === 1 ?
 async function fathom<T>(path: string, account = 1): Promise<T> {
   const key = process.env[account === 1 ? 'FATHOM_API_KEY' : `FATHOM_API_KEY_${account}`];
   if (!key) throw new Error('FATHOM_API_KEY no configurada');
-  const res = await fetch(`${API}${path}`, { headers: { 'X-Api-Key': key }, cache: 'no-store' });
+  let res = await fetch(`${API}${path}`, { headers: { 'X-Api-Key': key }, cache: 'no-store' });
+  // Límite de peticiones de Fathom (429): espera lo que indique Retry-After (o 2, 4, 8… s) y reintenta.
+  for (let i = 0; res.status === 429 && i < 6; i++) {
+    const wait = Math.min(30, Number(res.headers.get('retry-after')) || 2 ** (i + 1));
+    await new Promise((r) => setTimeout(r, wait * 1000));
+    res = await fetch(`${API}${path}`, { headers: { 'X-Api-Key': key }, cache: 'no-store' });
+  }
   if (!res.ok) throw new Error(`Fathom ${path.split('?')[0]}: ${res.status} ${await res.text()}`);
   return res.json() as Promise<T>;
 }
@@ -196,6 +202,7 @@ export async function importAllCrmCalls(trigger: string, deadlineMs: number) {
       }
       cursor = res.next_cursor ?? null;
       if (!cursor) break;
+      await new Promise((r) => setTimeout(r, 1100)); // ritmo suave para no superar el límite de Fathom
     }
     }
     stats.missingLinks = wanted.size;
