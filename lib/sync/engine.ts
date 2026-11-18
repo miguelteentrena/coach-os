@@ -65,6 +65,13 @@ async function applyEvidenceBatch(clientId: string, all: Evidence[]) {
       const { data, error } = await db.from('issues').insert(issueToRow(r.state)).select('id').single();
       if (error) { await logError('issues-insert', error, { scope: e.scopeKey }); continue; }
       id = data.id; r.state.id = id;
+      // Importación de histórico: un problema que nace con evidencia de hace más de 14 días no es una advertencia viva.
+      const t = archiveIfStale(r.state, addDays(todayISO(), -14));
+      if (t) {
+        t.note = `Importada del histórico: ${t.note}`;
+        await db.from('issues').update(issueToRow(r.state)).eq('id', id);
+        await db.from('issue_events').insert({ issue_id: id, actor: 'system', from_status: t.from, to_status: t.to, note: t.note });
+      }
     } else if (r.state !== prev) {
       await db.from('issues').update(issueToRow(r.state)).eq('id', id);
     }
@@ -115,8 +122,9 @@ async function syncAchievements(clientId: string, checkins: CheckinRecord[], ins
   }
 }
 
-async function syncCommitments(clientId: string, calls: any[], insights: InsightRow[]) {
+async function syncCommitments(clientId: string, calls: any[], insights: InsightRow[], activeClient: boolean) {
   const db = adminDb();
+  const lastOn = calls.length ? String(calls[calls.length - 1].recorded_at).slice(0, 10) : null;
   const coach = coachEmails();
   const rows: any[] = [];
   for (const call of calls) {
@@ -133,6 +141,11 @@ async function syncCommitments(clientId: string, calls: any[], insights: Insight
       for (const i of fromInsights)
         rows.push({ client_id: clientId, owner: i.kind === 'coach_commitment' ? 'coach' : 'client', text: i.text, source_type: 'fathom', source_ref: call.id, source_link: i.link, made_on: i.occurred_on, fingerprint: fingerprint('ins', i.id) });
     }
+  }
+  // Compromisos de llamadas anteriores a la última (o de clientes archivados) se guardan como histórico, no como pendientes.
+  for (const r of rows) {
+    r.status ??= 'open'; r.done_at ??= null; r.done_note ??= null;
+    if (r.status === 'open' && (!activeClient || (lastOn && r.made_on < lastOn))) { r.status = 'done'; r.done_at = new Date().toISOString(); r.done_note = 'Histórico (importado)'; }
   }
   if (rows.length) await db.from('commitments').upsert(rows, { onConflict: 'fingerprint', ignoreDuplicates: true });
 }
@@ -162,7 +175,9 @@ export async function refreshClientAlerts(clientId: string) {
 
   // 2) Logros y compromisos
   await syncAchievements(clientId, recs, insights);
-  await syncCommitments(clientId, calls ?? [], insights);
+  const activeClient = client.status === 'active' || client.status === 'upcoming';
+  await syncCommitments(clientId, calls ?? [], insights, activeClient);
+  if (!activeClient) return; // clientes archivados: solo análisis, logros e histórico; sin advertencias ni borradores
 
   // 3) Evidencias → advertencias
   const evs: Evidence[] = [];
@@ -210,7 +225,7 @@ export async function refreshClientAlerts(clientId: string) {
 /** Recalcula todos los clientes. La primera vez archiva lo antiguo y respeta lo que ya marcaste como hecho en la versión anterior. */
 export async function refreshAll() {
   const db = adminDb();
-  const { data } = await db.from('clients').select('id').in('status', ['active', 'upcoming']);
+  const { data } = await db.from('clients').select('id');
   for (const c of data ?? []) {
     try { await refreshClientAlerts(c.id); } catch (e) { await logError('refresh', e, { client: c.id }); }
   }

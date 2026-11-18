@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchCrmRows, syncCrm } from '@/lib/sync/crm';
 import { syncJotform } from '@/lib/sync/jotform';
-import { reconcileFathom, relinkUnassignedCalls } from '@/lib/sync/fathom';
+import { processPendingExtractions, reconcileFathom, relinkUnassignedCalls } from '@/lib/sync/fathom';
 import { refreshAll } from '@/lib/sync/engine';
 import { integrationStatus, logError } from '@/lib/supabase';
 
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   else out.crm = 'omitido: lectura directa del CRM no configurada (se depende del Apps Script)';
   if (st.jotformApi) { try { out.jotform = await syncJotform('cron', 'reconcile'); } catch (e) { out.jotform = String(e); } }
   else out.jotform = 'omitido: JOTFORM_API_KEY no configurada';
-  if (st.fathomApi) { try { out.fathom = await reconcileFathom('cron', 30); out.relinked = await relinkUnassignedCalls(); } catch (e) { out.fathom = String(e); } }
+  if (st.fathomApi) { try { out.fathom = await reconcileFathom('cron', 30); out.relinked = await relinkUnassignedCalls(); out.extracted = await processPendingExtractions(Date.now() + 90_000); } catch (e) { out.fathom = String(e); } }
   else out.fathom = 'omitido: FATHOM_API_KEY no configurada';
   out.refreshed = await refreshAll();
   return NextResponse.json(out);

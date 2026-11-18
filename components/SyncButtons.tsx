@@ -6,6 +6,7 @@ const ACTIONS = [
   ['crm', 'Sincronizar CRM ahora', 'crmPull'],
   ['jotform_backfill', 'Importar histórico de Jotform', 'jotformApi'],
   ['fathom', 'Sincronizar llamadas de Fathom', 'fathomApi'],
+  ['fathom_all', 'Importar todas las llamadas del CRM', 'fathomApi'],
   ['refresh', 'Recalcular advertencias y logros', 'supabase'],
 ] as const;
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchCrmRows, syncCrm } from '@/lib/sync/crm';
 import { syncJotform } from '@/lib/sync/jotform';
-import { reconcileFathom, relinkUnassignedCalls } from '@/lib/sync/fathom';
+import { importAllCrmCalls, reconcileFathom, relinkUnassignedCalls } from '@/lib/sync/fathom';
 import { refreshAll } from '@/lib/sync/engine';
 import { userDb } from '@/lib/supabase';
 
@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
   try {
     if (action === 'crm') return NextResponse.json(await syncCrm(await fetchCrmRows(), 'manual'));
     if (action === 'jotform_backfill') return NextResponse.json(await syncJotform('manual', 'backfill'));
+    if (action === 'fathom_all') return NextResponse.json(await importAllCrmCalls('manual_all', Date.now() + 200_000));
     if (action === 'fathom') return NextResponse.json({ ...(await reconcileFathom('manual', 120)), relinked: await relinkUnassignedCalls() });
     if (action === 'refresh') return NextResponse.json({ refreshed: await refreshAll() });
     return NextResponse.json({ error: 'acción desconocida' }, { status: 400 });

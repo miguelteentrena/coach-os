@@ -11,12 +11,15 @@ const CAT: Record<string, { label: string; icon: string }> = {
 const SRC: Record<string, string> = { jotform: 'Jotform', fathom: 'Llamada', manual: 'Manual' };
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
-export default async function Logros({ searchParams }: { searchParams: { c?: string; src?: string; desde?: string; hasta?: string } }) {
+export default async function Logros({ searchParams }: { searchParams: { c?: string; src?: string; desde?: string; hasta?: string; estado?: string } }) {
   const header = <PageHeader title="Logros" subtitle="Histórico acumulativo de los avances de tus clientes, de los formularios y de las llamadas." />;
   if (!dbReady()) return <>{header}<NotConnected /></>;
   const today = todayISO();
   const [all, clients] = await Promise.all([getAchievements(), getClients()]);
   let list = all;
+  const isCurrent = (id: string) => ['active', 'upcoming'].includes(clients.find((c) => c.id === id)?.status ?? '');
+  if (searchParams.estado === 'actuales') list = list.filter((a: any) => isCurrent(a.client_id));
+  if (searchParams.estado === 'archivados') list = list.filter((a: any) => !isCurrent(a.client_id));
   if (searchParams.c) list = list.filter((a: any) => a.client_id === searchParams.c);
   if (searchParams.src) list = list.filter((a: any) => a.mentions.some((m: any) => m.source_type === searchParams.src));
   if (searchParams.desde) list = list.filter((a: any) => a.last_mentioned_on >= searchParams.desde!);
@@ -37,11 +40,12 @@ export default async function Logros({ searchParams }: { searchParams: { c?: str
       </section>
       <form className="mb-6 flex flex-wrap items-end gap-2" action="/logros">
         <select name="c" defaultValue={searchParams.c ?? ''} className="input"><option value="">Todos los clientes</option>{withLogros.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}</select>
-        <select name="src" defaultValue={searchParams.src ?? ''} className="input"><option value="">Todas las fuentes</option><option value="jotform">Jotform</option><option value="fathom">Llamadas (Fathom)</option></select>
+        <select name="estado" defaultValue={searchParams.estado ?? ''} className="input"><option value="">Actuales y archivados</option><option value="actuales">Solo clientes actuales</option><option value="archivados">Solo clientes archivados</option></select>
+<select name="src" defaultValue={searchParams.src ?? ''} className="input"><option value="">Todas las fuentes</option><option value="jotform">Jotform</option><option value="fathom">Llamadas (Fathom)</option></select>
         <label className="text-xs text-ink-400">Desde <input type="date" name="desde" defaultValue={searchParams.desde} className="input ml-1" /></label>
         <label className="text-xs text-ink-400">Hasta <input type="date" name="hasta" defaultValue={searchParams.hasta} className="input ml-1" /></label>
         <button className="btn-primary">Filtrar</button>
-        {(searchParams.c || searchParams.src || searchParams.desde || searchParams.hasta) && <Link href="/logros" className="btn">Limpiar</Link>}
+        {(searchParams.c || searchParams.estado || searchParams.src || searchParams.desde || searchParams.hasta) && <Link href="/logros" className="btn">Limpiar</Link>}
       </form>
       {!list.length ? <Empty title="Sin logros para este filtro" /> : (
         <div className="space-y-8">
