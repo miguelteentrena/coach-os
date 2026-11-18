@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { --font-sans: ui-sans-serif, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif; --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace; color-scheme: dark; }
+html, body { background: #0a0b0a; color: #eef2ee; }
+body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; font-feature-settings: "tnum" 1, "cv11" 1; }
+body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(900px 500px at 85% -10%, rgba(198,244,50,.07), transparent 60%), radial-gradient(700px 400px at -10% 110%, rgba(198,244,50,.04), transparent 60%); }
+
+@layer components {
+  .card { @apply relative rounded-2xl border border-ink-700/70 bg-ink-900/80 backdrop-blur-sm; box-shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 20px 40px -24px rgba(0,0,0,.6); }
+  .card-h { @apply flex items-center justify-between px-5 pt-4 pb-3 text-[11px] font-medium uppercase tracking-[.14em] text-ink-400; }
+  .label { @apply text-[11px] uppercase tracking-[.14em] text-ink-400; }
+  .num { @apply font-mono tabular-nums; }
+  .input { @apply rounded-xl border border-ink-700 bg-ink-850 px-3 py-2 text-sm outline-none transition focus:border-lime/60 focus:ring-2 focus:ring-lime/15 placeholder:text-ink-500; }
+  .btn { @apply inline-flex items-center justify-center gap-1.5 rounded-xl border border-ink-700 bg-ink-850 px-3 py-1.5 text-sm text-ink-100 transition hover:border-ink-500 hover:bg-ink-800 disabled:opacity-40; }
+  .btn-primary { @apply inline-flex items-center justify-center gap-1.5 rounded-xl bg-lime px-3.5 py-2 text-sm font-semibold text-ink-950 transition hover:brightness-110 disabled:opacity-40; }
+  .pill { @apply inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium; }
+  .logo-dot { @apply inline-block h-2.5 w-2.5 rounded-full bg-lime; box-shadow: 0 0 0 4px rgba(198,244,50,.15), 0 0 18px rgba(198,244,50,.6); }
+  .row-link { @apply flex items-center gap-4 px-5 py-3 border-t border-ink-800 transition hover:bg-ink-850/70; }
+  .table th { @apply px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-[.12em] text-ink-400 border-b border-ink-800; }
+  .table td { @apply px-4 py-3 border-b border-ink-800/70 text-sm; }
+}
