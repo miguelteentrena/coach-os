@@ -125,3 +125,10 @@ export async function getCommitments(opts: { clientId?: string; owner?: 'coach' 
   const { data } = await q;
   return data ?? [];
 }
+
+export async function getMeasurements(clientId?: string) {
+  let q = userDb().from('measurements').select('*').order('measured_on');
+  if (clientId) q = q.eq('client_id', clientId);
+  const { data } = await q;
+  return data ?? [];
+}
