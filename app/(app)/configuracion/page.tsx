@@ -19,7 +19,7 @@ export default async function Configuracion() {
     ['CRM · respaldo diario', 'Sheets API con cuenta de servicio de solo lectura', st.crmPull, 'GOOGLE_SERVICE_ACCOUNT_JSON, CRM_SPREADSHEET_ID'],
     ['Jotform · API', 'Histórico y reconciliación diaria (21 días)', st.jotformApi, 'JOTFORM_API_KEY, JOTFORM_API_BASE'],
     ['Jotform · webhook', 'Recepción inmediata de cada check-in', st.jotformWebhook, `JOTFORM_WEBHOOK_TOKEN · URL: ${base}/api/webhooks/jotform?token=…`],
-    ['Fathom · API', 'Reconciliación diaria de llamadas (30 días) y asignación por enlaces del CRM', st.fathomApi, 'FATHOM_API_KEY'],
+    ['Fathom · API', 'Reconciliación diaria de llamadas (30 días) y asignación por enlaces del CRM', st.fathomApi, 'FATHOM_API_KEY (y FATHOM_API_KEY_2 para una segunda cuenta)'],
     ['Fathom · webhook', 'Recepción de cada llamada al terminar de procesarse (firma Standard Webhooks)', st.fathomWebhook, `FATHOM_WEBHOOK_SECRET · URL: ${base}/api/webhooks/fathom`],
     ['Extracción con IA (opcional)', 'Lee la transcripción y extrae problemas, logros y compromisos con cita literal verificada. Sin ella se guarda el resumen de Fathom.', st.aiExtraction, 'ANTHROPIC_API_KEY'],
     ['Tarea diaria', 'Vercel Cron 05:17 UTC: recalcula días, renovaciones y ausencias', st.cron, 'CRON_SECRET'],

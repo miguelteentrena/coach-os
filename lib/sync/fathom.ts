@@ -5,8 +5,10 @@ import { coachEmails, refreshClientAlerts } from './engine';
 
 const API = 'https://api.fathom.ai/external/v1';
 
-async function fathom<T>(path: string): Promise<T> {
-  const key = process.env.FATHOM_API_KEY;
+/** Cuentas de Fathom conectadas: 1 = FATHOM_API_KEY, 2 = FATHOM_API_KEY_2 (cuenta antigua). */
+export const fathomAccounts = () => [1, 2].filter((n) => !!process.env[n === 1 ? 'FATHOM_API_KEY' : `FATHOM_API_KEY_${n}`]);
+async function fathom<T>(path: string, account = 1): Promise<T> {
+  const key = process.env[account === 1 ? 'FATHOM_API_KEY' : `FATHOM_API_KEY_${account}`];
   if (!key) throw new Error('FATHOM_API_KEY no configurada');
   const res = await fetch(`${API}${path}`, { headers: { 'X-Api-Key': key }, cache: 'no-store' });
   if (!res.ok) throw new Error(`Fathom ${path.split('?')[0]}: ${res.status} ${await res.text()}`);
@@ -27,7 +29,7 @@ export async function crmLinks(): Promise<CrmCallLinks[]> {
 }
 
 /** Guarda una reunión de Fathom. Solo se guarda el contenido (resumen, tareas) si la llamada es de un cliente. */
-export async function ingestMeeting(raw: any, via: 'webhook' | 'api') {
+export async function ingestMeeting(raw: any, via: 'webhook' | 'api', account = 1) {
   const db = adminDb();
   const m = parseMeeting(raw);
   if (!Number.isFinite(m.recordingId)) throw new Error('recording_id ausente');
@@ -39,7 +41,7 @@ export async function ingestMeeting(raw: any, via: 'webhook' | 'api') {
   if (!existing && !match && m.inviteeEmails.some((e) => !coach.includes(e))) return { id: null, matched: false, skipped: true };
   const clientId = existing?.client_id ?? match?.clientId ?? null;
   const row = {
-    fathom_recording_id: m.recordingId, client_id: clientId, match_method: existing?.match_method ?? match?.method ?? null,
+    fathom_recording_id: m.recordingId, fathom_account: account, client_id: clientId, match_method: existing?.match_method ?? match?.method ?? null,
     title: m.title, recorded_at: m.recordedAt, call_url: m.url, share_url: m.shareUrl, invitee_emails: m.inviteeEmails,
     summary_md: clientId ? m.summaryMd : null, action_items: clientId ? m.actionItems : [], received_via: via, updated_at: new Date().toISOString(),
   };
@@ -61,7 +63,7 @@ export async function extractCall(callId: string) {
     return;
   }
   try {
-    const t = await fathom<any>(`/recordings/${call.fathom_recording_id}/transcript`);
+    const t = await fathom<any>(`/recordings/${call.fathom_recording_id}/transcript`, call.fathom_account ?? 1);
     const segments: any[] = t.transcript ?? t.items ?? [];
     const coach = coachEmails();
     const text = segments.map((s) => {
@@ -105,17 +107,19 @@ export async function reconcileFathom(trigger: string, days = 30) {
   const stats = { fetched: 0, matched: 0, errors: 0 };
   try {
     const after = new Date(Date.now() - days * 86400000).toISOString();
+    for (const acc of fathomAccounts()) {
     let cursor: string | null = null;
     for (let page = 0; page < 20; page++) {
       const q = new URLSearchParams({ created_after: after, include_summary: 'true', include_action_items: 'true' });
       if (cursor) q.set('cursor', cursor);
-      const res: any = await fathom<any>(`/meetings?${q}`);
+      const res: any = await fathom<any>(`/meetings?${q}`, acc);
       for (const m of res.items ?? []) {
         stats.fetched++;
-        try { const r = await ingestMeeting(m, 'api'); if (r.matched) stats.matched++; } catch (e) { stats.errors++; await logError('fathom-ingest', e, { id: m.recording_id }); }
+        try { const r = await ingestMeeting(m, 'api', acc); if (r.matched) stats.matched++; } catch (e) { stats.errors++; await logError('fathom-ingest', e, { id: m.recording_id }); }
       }
       cursor = res.next_cursor ?? null;
       if (!cursor) break;
+    }
     }
     await db.from('sync_runs').update({ finished_at: new Date().toISOString(), ok: stats.errors === 0, stats }).eq('id', run?.id);
     return stats;
@@ -140,8 +144,8 @@ export async function relinkUnassignedCalls() {
     if (process.env.FATHOM_API_KEY) {
       // recuperar resumen y tareas ahora que sabemos que es de un cliente
       try {
-        const { data: row } = await db.from('calls').select('fathom_recording_id').eq('id', c.id).single();
-        const s: any = await fathom<any>(`/recordings/${row!.fathom_recording_id}/summary`);
+        const { data: row } = await db.from('calls').select('fathom_recording_id,fathom_account').eq('id', c.id).single();
+        const s: any = await fathom<any>(`/recordings/${row!.fathom_recording_id}/summary`, row!.fathom_account ?? 1);
         await db.from('calls').update({ summary_md: s.summary?.markdown_formatted ?? s.markdown_formatted ?? null }).eq('id', c.id);
       } catch (e) { await logError('fathom-relink-summary', e, { callId: c.id }); }
     }
@@ -166,12 +170,13 @@ export async function importAllCrmCalls(trigger: string, deadlineMs: number) {
   for (const c of have ?? []) for (const k of [normFathomUrl(c.call_url), normFathomUrl(c.share_url)]) if (k) wanted.delete(k);
   const touched = new Set<string>();
   try {
+    for (const acc of fathomAccounts()) {
     let cursor: string | null = null;
     for (let page = 0; page < 200 && wanted.size; page++) {
       if (Date.now() > deadlineMs) { stats.partial = true; break; }
       const q = new URLSearchParams({ include_summary: 'true', include_action_items: 'true' });
       if (cursor) q.set('cursor', cursor);
-      const res: any = await fathom<any>(`/meetings?${q}`);
+      const res: any = await fathom<any>(`/meetings?${q}`, acc);
       for (const raw of res.items ?? []) {
         stats.scanned++;
         const m = parseMeeting(raw);
@@ -182,7 +187,7 @@ export async function importAllCrmCalls(trigger: string, deadlineMs: number) {
         keys.forEach((k) => wanted.delete(k));
         if (ex) { stats.alreadyIn++; continue; }
         const { error } = await db.from('calls').insert({
-          fathom_recording_id: m.recordingId, client_id: match.clientId, match_method: match.method, title: m.title, recorded_at: m.recordedAt,
+          fathom_recording_id: m.recordingId, fathom_account: acc, client_id: match.clientId, match_method: match.method, title: m.title, recorded_at: m.recordedAt,
           call_url: m.url, share_url: m.shareUrl, invitee_emails: m.inviteeEmails, summary_md: m.summaryMd, action_items: m.actionItems,
           received_via: 'api', extraction_status: 'pending',
         });
@@ -191,6 +196,7 @@ export async function importAllCrmCalls(trigger: string, deadlineMs: number) {
       }
       cursor = res.next_cursor ?? null;
       if (!cursor) break;
+    }
     }
     stats.missingLinks = wanted.size;
     stats.extracted = await processPendingExtractions(deadlineMs, touched);
