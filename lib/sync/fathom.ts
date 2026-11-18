@@ -60,7 +60,7 @@ export async function ingestMeeting(raw: any, via: 'webhook' | 'api', account = 
 
 /** Extracción de información con IA sobre la transcripción (solo si hay ANTHROPIC_API_KEY).
  *  Sin clave: se conserva el resumen y las tareas de Fathom y la llamada queda como «sin extracción». */
-export async function extractCall(callId: string) {
+export async function extractCall(callId: string, source: 'transcript' | 'summary' = 'transcript') {
   const db = adminDb();
   const { data: call } = await db.from('calls').select('*').eq('id', callId).single();
   if (!call?.client_id) return;
@@ -69,28 +69,35 @@ export async function extractCall(callId: string) {
     return;
   }
   try {
-    const t = await fathom<any>(`/recordings/${call.fathom_recording_id}/transcript`, call.fathom_account ?? 1);
-    const segments: any[] = t.transcript ?? t.items ?? [];
-    const coach = coachEmails();
-    const text = segments.map((s) => {
-      const email = String(s.speaker?.matched_calendar_invitee_email ?? '').toLowerCase();
-      const who = coach.includes(email) || /miguel/i.test(s.speaker?.display_name ?? '') ? 'Miguel (entrenador)' : 'Cliente';
-      return `[${s.timestamp ?? ''}] ${who}: ${s.text}`;
-    }).join('\n');
-    if (!text.trim()) throw new Error('Transcripción vacía');
+    // Histórico: se usa el resumen de Fathom (menos texto enviado y más rápido). Llamadas nuevas: la transcripción.
+    const useSummary = source === 'summary' && !!call.summary_md;
+    let text: string;
+    if (useSummary) {
+      text = String(call.summary_md).replace(/\]\([^)]+\)/g, ']').replace(/[\[\]]/g, '');
+    } else {
+      const t = await fathom<any>(`/recordings/${call.fathom_recording_id}/transcript`, call.fathom_account ?? 1);
+      const segments: any[] = t.transcript ?? t.items ?? [];
+      const coach = coachEmails();
+      text = segments.map((s) => {
+        const email = String(s.speaker?.matched_calendar_invitee_email ?? '').toLowerCase();
+        const who = coach.includes(email) || /miguel/i.test(s.speaker?.display_name ?? '') ? 'Miguel (entrenador)' : 'Cliente';
+        return `[${s.timestamp ?? ''}] ${who}: ${s.text}`;
+      }).join('\n');
+    }
+    if (!text.trim()) throw new Error('Texto de la llamada vacío');
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
       body: JSON.stringify({
         model: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5-5', max_tokens: 4000, system: EXTRACTION_SYSTEM,
         tools: [EXTRACTION_TOOL], tool_choice: { type: 'tool', name: EXTRACTION_TOOL.name },
-        messages: [{ role: 'user', content: `Transcripción de la llamada del ${String(call.recorded_at).slice(0, 10)}:\n\n${text}` }],
+        messages: [{ role: 'user', content: `${useSummary ? 'Resumen de Fathom (no es literal; usa como «quote» frases copiadas del resumen)' : 'Transcripción'} de la llamada del ${String(call.recorded_at).slice(0, 10)}:\n\n${text}` }],
       }),
     });
     if (!res.ok) throw new Error(`Anthropic ${res.status}: ${await res.text()}`);
     const out = await res.json();
     const items: ExtractedInsight[] = out.content?.find((c: any) => c.type === 'tool_use')?.input?.items ?? [];
-    const validated = validateQuotes(items, text);
+    const validated = validateQuotes(items, text).map((i) => useSummary && i.basis === 'verbatim_quote' ? { ...i, basis: 'fathom_summary' as const, timestamp_sec: null } : i);
     const on = String(call.recorded_at).slice(0, 10);
     const rows = validated.map((i) => ({
       call_id: callId, client_id: call.client_id, kind: i.kind, speaker: i.speaker, basis: i.basis, text: i.text, quote: i.quote,
@@ -99,7 +106,7 @@ export async function extractCall(callId: string) {
       fingerprint: fingerprint(i.kind, i.text),
     }));
     if (rows.length) await db.from('call_insights').upsert(rows, { onConflict: 'call_id,fingerprint', ignoreDuplicates: true });
-    await db.from('calls').update({ extraction_status: 'done', extraction_basis: 'transcript_llm', extracted_at: new Date().toISOString() }).eq('id', callId);
+    await db.from('calls').update({ extraction_status: 'done', extraction_basis: useSummary ? 'summary_llm' : 'transcript_llm', extracted_at: new Date().toISOString() }).eq('id', callId);
   } catch (e) {
     await db.from('calls').update({ extraction_status: 'failed' }).eq('id', callId);
     await logError('fathom-extract', e, { callId });
@@ -223,11 +230,15 @@ export async function processPendingExtractions(deadlineMs: number, touched = ne
   if (!process.env.ANTHROPIC_API_KEY) return 0;
   const db = adminDb();
   const { data: pending } = await db.from('calls').select('id,client_id').not('client_id', 'is', null)
-    .in('extraction_status', ['pending', 'not_configured']).order('recorded_at', { ascending: false }).limit(50);
+    .in('extraction_status', ['pending', 'not_configured', 'failed']).order('recorded_at', { ascending: false }).limit(120);
+  const queue = [...(pending ?? [])];
   let n = 0;
-  for (const c of pending ?? []) {
-    if (Date.now() > deadlineMs) break;
-    await extractCall(c.id); n++; touched.add(c.client_id);
-  }
+  const worker = async () => {
+    while (queue.length && Date.now() < deadlineMs) {
+      const c = queue.shift()!;
+      await extractCall(c.id, 'summary'); n++; touched.add(c.client_id);
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
   return n;
 }

@@ -10,7 +10,6 @@ export default async function Llamadas() {
   const [calls, clients] = await Promise.all([getCalls(), getClients()]);
   const unassigned = calls.filter((c: any) => !c.client_id);
   const assigned = calls.filter((c: any) => c.client_id);
-  const active = clients.filter((c) => c.status === 'active' || c.status === 'upcoming');
   return (
     <>
       {header}
@@ -23,7 +22,7 @@ export default async function Llamadas() {
               <span className="num w-24">{fmtES(String(c.recorded_at).slice(0, 10))}</span>
               <span className="flex-1 truncate text-ink-300">{c.title}{c.invitee_emails?.length ? ` · ${c.invitee_emails.join(', ')}` : ''}</span>
               {c.call_url && <a href={c.call_url} target="_blank" rel="noreferrer" className="text-xs text-lime hover:underline">Fathom ↗</a>}
-              <AssignCall callId={c.id} clients={active} />
+              <AssignCall callId={c.id} clients={clients} />
             </div>
           ))}
         </div>

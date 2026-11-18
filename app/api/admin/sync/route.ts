@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchCrmRows, syncCrm } from '@/lib/sync/crm';
 import { syncJotform } from '@/lib/sync/jotform';
-import { importAllCrmCalls, reconcileFathom, relinkUnassignedCalls } from '@/lib/sync/fathom';
+import { importAllCrmCalls, processPendingExtractions, reconcileFathom, relinkUnassignedCalls } from '@/lib/sync/fathom';
+import { refreshClientAlerts } from '@/lib/sync/engine';
+import { adminDb } from '@/lib/supabase';
 import { refreshAll } from '@/lib/sync/engine';
 import { userDb } from '@/lib/supabase';
 
@@ -19,6 +21,14 @@ export async function POST(req: NextRequest) {
   try {
     if (action === 'crm') return NextResponse.json(await syncCrm(await fetchCrmRows(), 'manual'));
     if (action === 'jotform_backfill') return NextResponse.json(await syncJotform('manual', 'backfill'));
+    if (action === 'extract') {
+      if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: 'Falta ANTHROPIC_API_KEY en Vercel: sin ella no se pueden extraer logros de las llamadas.' }, { status: 400 });
+      const touched = new Set<string>();
+      const extracted = await processPendingExtractions(Date.now() + 190_000, touched);
+      for (const id of touched) await refreshClientAlerts(id);
+      const { count } = await adminDb().from('calls').select('id', { count: 'exact', head: true }).not('client_id', 'is', null).in('extraction_status', ['pending', 'not_configured', 'failed']);
+      return NextResponse.json({ extracted, clientsRefreshed: touched.size, remaining: count ?? 0, info: count ? 'Pulsa otra vez para seguir.' : 'Todas las llamadas procesadas.' });
+    }
     if (action === 'fathom_all') return NextResponse.json(await importAllCrmCalls('manual_all', Date.now() + 200_000));
     if (action === 'fathom') return NextResponse.json({ ...(await reconcileFathom('manual', 120)), relinked: await relinkUnassignedCalls() });
     if (action === 'refresh') return NextResponse.json({ refreshed: await refreshAll() });
