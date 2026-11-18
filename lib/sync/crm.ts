@@ -54,7 +54,12 @@ export async function syncCrm(rows: SheetRow[], trigger: string): Promise<CrmSyn
       // Buscar cliente existente: por email; si no hay email, por nombre normalizado SIN email
       let q = db.from('clients').select('*');
       q = c.email ? q.eq('email', c.email) : q.is('email', null).eq('name_key', nk);
-      const { data: existing } = await q.maybeSingle();
+      let { data: existing } = await q.maybeSingle();
+      // Si en el CRM se añade el email a un cliente que ya existía sin email, se actualiza ese cliente (no se crea un duplicado).
+      if (!existing && c.email) {
+        const { data: noEmail } = await db.from('clients').select('*').is('email', null).eq('name_key', nk);
+        if (noEmail?.length === 1) existing = noEmail[0];
+      }
       const payload = { ...base, crm_last_seen_at: new Date().toISOString(), updated_at: new Date().toISOString() };
       let clientId: string;
       if (!existing) {
