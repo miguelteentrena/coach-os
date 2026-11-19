@@ -9,8 +9,8 @@ export async function GET(req: NextRequest, { params }: { params: { invite: stri
   if (!/^[0-9a-f-]{36}$/i.test(params.invite)) return bad('Enlace no válido');
   const { data: inv } = await adminDb().from('fatsecret_invites').select('id, used_at, expires_at').eq('id', params.invite).maybeSingle();
   if (!inv) return bad('Enlace no válido');
-  if (inv.used_at) return bad('Este enlace ya se ha usado. Pide uno nuevo a tu entrenador.');
-  if (new Date(inv.expires_at) < new Date()) return bad('Este enlace ha caducado. Pide uno nuevo a tu entrenador.');
+  if (inv.used_at) return bad('Este enlace ya se ha usado. Pídele uno nuevo a Miguel.');
+  if (new Date(inv.expires_at) < new Date()) return bad('Este enlace ha caducado. Pídele uno nuevo a Miguel.');
   try {
     const url = await startAuthorization(inv.id, new URL('/api/fatsecret/callback', req.url).toString());
     return NextResponse.redirect(url);
