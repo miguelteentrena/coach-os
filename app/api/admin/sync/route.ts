@@ -3,6 +3,7 @@ import { fetchCrmRows, syncCrm } from '@/lib/sync/crm';
 import { syncJotform } from '@/lib/sync/jotform';
 import { importAllCrmCalls, processPendingExtractions, reconcileFathom, relinkUnassignedCalls } from '@/lib/sync/fathom';
 import { refreshClientAlerts } from '@/lib/sync/engine';
+import { syncAllFatsecret } from '@/lib/sync/fatsecret';
 import { adminDb } from '@/lib/supabase';
 import { refreshAll } from '@/lib/sync/engine';
 import { userDb } from '@/lib/supabase';
@@ -21,6 +22,7 @@ export async function POST(req: NextRequest) {
   try {
     if (action === 'crm') return NextResponse.json(await syncCrm(await fetchCrmRows(), 'manual'));
     if (action === 'jotform_backfill') return NextResponse.json(await syncJotform('manual', 'backfill'));
+    if (action === 'fatsecret') return NextResponse.json(await syncAllFatsecret('manual'));
     if (action === 'extract') {
       if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: 'Falta ANTHROPIC_API_KEY en Vercel: sin ella no se pueden extraer logros de las llamadas.' }, { status: 400 });
       const touched = new Set<string>();

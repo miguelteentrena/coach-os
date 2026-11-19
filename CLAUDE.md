@@ -16,6 +16,8 @@ App privada de seguimiento de clientes (Miguel, coach online). Español. Next.js
 - `lib/sync/engine.ts` `refreshClientAlerts` (recalcula todo de un cliente) y `refreshAll`.
 - `lib/sync/crm.ts`, `lib/crm*.ts` CRM Google Sheets; `lib/sync/jotform.ts`, `lib/jotform.ts` Jotform (API UE).
 - `app/(app)/*` páginas; `app/actions.ts` acciones del servidor; `app/api/*` webhooks, cron y sync manual.
+- `lib/fatsecret.ts` (firma OAuth 1.0, parsers, medias) + `lib/sync/fatsecret.ts` (autorización y sincronización); enlace público `app/conectar/fatsecret/[invite]`, vuelta en `app/api/fatsecret/callback`; página `app/(app)/nutricion`; tarjeta `components/FatsecretCard.tsx`.
+- Medidas corporales: tabla `measurements` (llamadas, Jotform, FatSecret), página Evolución.
 - `tests/` vitest (lógica pura; los de BD/CRM real se saltan sin variables).
 
 ## Reglas del usuario
@@ -23,7 +25,7 @@ App privada de seguimiento de clientes (Miguel, coach online). Español. Next.js
 - No enviar WhatsApp automáticamente. Datos de salud nunca en borradores ni a servicios externos sin clave explícita.
 - No pedir ni imprimir claves; las pone el usuario en Vercel.
 
-## Pendiente: FatSecret + apartado de Nutrición (petición de Miguel, 19/11/2026)
+## FatSecret + Nutrición (hecho 19/11/2026; especificación original)
 - Conexión: OAuth 1.0 de 3 patas (authentication.fatsecret.com). Claves de la app en Vercel: `FATSECRET_CONSUMER_KEY`, `FATSECRET_CONSUMER_SECRET`. Enlace único por cliente desde su ficha (un solo uso); token y secreto guardados por cliente; sincronización nocturna en el cron (food_entries.get_month + weights.get_month). Mostrar en ficha/Configuración quién está conectado y la última sincronización; botón para desconectar. Verificar primero que la edición Basic permite leer diarios.
 - Apartado **Nutrición** dentro de cada cliente, lo más visual e intuitivo posible:
   - Selector **Día / Semana / Mes**.

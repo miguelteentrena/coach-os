@@ -15,6 +15,7 @@ export function integrationStatus() {
     fathomApi: has('FATHOM_API_KEY'),
     fathomWebhook: has('FATHOM_WEBHOOK_SECRET'),
     aiExtraction: has('ANTHROPIC_API_KEY'),
+    fatsecret: has('FATSECRET_CONSUMER_KEY') && has('FATSECRET_CONSUMER_SECRET'),
   };
 }
 

@@ -8,6 +8,7 @@ const ACTIONS = [
   ['fathom', 'Sincronizar llamadas de Fathom', 'fathomApi'],
   ['fathom_all', 'Importar todas las llamadas del CRM', 'fathomApi'],
   ['extract', 'Extraer logros de las llamadas (IA)', 'supabase'],
+  ['fatsecret', 'Sincronizar FatSecret', 'fatsecret'],
   ['refresh', 'Recalcular advertencias y logros', 'supabase'],
 ] as const;
 

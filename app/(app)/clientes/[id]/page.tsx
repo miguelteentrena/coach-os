@@ -7,6 +7,9 @@ import { dbReady, getAchievements, getCalls, getClient, getCommitments, getIssue
 import IssueCard from '@/components/IssueCard';
 import CommitmentItem from '@/components/CommitmentItem';
 import CallCard from '@/components/CallCard';
+import FatsecretCard from '@/components/FatsecretCard';
+import { getFatsecretStatus } from '@/lib/data';
+import { integrationStatus } from '@/lib/supabase';
 import { todayISO } from '@/lib/dates';
 import { sortIssues } from '@/lib/issues';
 import { fmtES } from '@/lib/dates';
@@ -18,6 +21,7 @@ export default async function Ficha({ params }: { params: { id: string } }) {
     getClient(params.id), getIssues({ clientId: params.id }), getCommitments({ clientId: params.id }), getAchievements({ clientId: params.id }), getCalls({ clientId: params.id }),
   ]);
   if (!client) notFound();
+  const fsStatus = (await getFatsecretStatus()).find((x: any) => x.client_id === client.id) ?? null;
   const today = todayISO();
   const activeIssues = sortIssues(issues.filter((i: any) => ['new', 'pending', 'monitoring'].includes(i.status)) as any[], today);
   const closedIssues = issues.filter((i: any) => ['resolved', 'dismissed'].includes(i.status));
@@ -192,6 +196,7 @@ export default async function Ficha({ params }: { params: { id: string } }) {
         </div>
 
         <div className="space-y-6">
+          <FatsecretCard clientId={client.id} status={fsStatus} target={client.calorie_target ?? null} enabled={integrationStatus().fatsecret} />
           {p && (
             <form action={addAdjustment} className="card space-y-3 p-5">
               <div className="label">Pausa / extensión</div>

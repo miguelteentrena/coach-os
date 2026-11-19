@@ -3,6 +3,7 @@ import { fetchCrmRows, syncCrm } from '@/lib/sync/crm';
 import { syncJotform } from '@/lib/sync/jotform';
 import { processPendingExtractions, reconcileFathom, relinkUnassignedCalls } from '@/lib/sync/fathom';
 import { refreshAll } from '@/lib/sync/engine';
+import { syncAllFatsecret } from '@/lib/sync/fatsecret';
 import { integrationStatus, logError } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
@@ -19,6 +20,7 @@ export async function GET(req: NextRequest) {
   else out.jotform = 'omitido: JOTFORM_API_KEY no configurada';
   if (st.fathomApi) { try { out.fathom = await reconcileFathom('cron', 30); out.relinked = await relinkUnassignedCalls(); out.extracted = await processPendingExtractions(Date.now() + 90_000); } catch (e) { out.fathom = String(e); } }
   else out.fathom = 'omitido: FATHOM_API_KEY no configurada';
+  if (st.fatsecret) { try { out.fatsecret = await syncAllFatsecret('cron'); } catch (e) { out.fatsecret = String(e); } }
   out.refreshed = await refreshAll();
   return NextResponse.json(out);
 }

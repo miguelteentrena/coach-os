@@ -22,6 +22,7 @@ export default async function Configuracion() {
     ['Fathom · API', 'Reconciliación diaria de llamadas (30 días) y asignación por enlaces del CRM', st.fathomApi, 'FATHOM_API_KEY (y FATHOM_API_KEY_2 para una segunda cuenta)'],
     ['Fathom · webhook', 'Recepción de cada llamada al terminar de procesarse (firma Standard Webhooks)', st.fathomWebhook, `FATHOM_WEBHOOK_SECRET · URL: ${base}/api/webhooks/fathom`],
     ['Extracción con IA (opcional)', 'Lee la transcripción y extrae problemas, logros y compromisos con cita literal verificada. Sin ella se guarda el resumen de Fathom.', st.aiExtraction, 'ANTHROPIC_API_KEY'],
+    ['FatSecret', 'Diario de comidas y peso de cada cliente que autorice su cuenta (enlace único desde su ficha). Se sincroniza cada noche.', st.fatsecret, 'FATSECRET_CONSUMER_KEY, FATSECRET_CONSUMER_SECRET'],
     ['Tarea diaria', 'Vercel Cron 05:17 UTC: recalcula días, renovaciones y ausencias', st.cron, 'CRON_SECRET'],
   ];
   return (
@@ -37,12 +38,12 @@ export default async function Configuracion() {
       <section className="mt-6 grid gap-6 lg:grid-cols-2">
         <div className="card p-5">
           <div className="label mb-3">Acciones manuales</div>
-          <SyncButtons enabled={{ crmPull: st.supabase && st.crmPull, jotformApi: st.supabase && st.jotformApi, fathomApi: st.supabase && st.fathomApi, supabase: st.supabase }} />
+          <SyncButtons enabled={{ crmPull: st.supabase && st.crmPull, jotformApi: st.supabase && st.jotformApi, fathomApi: st.supabase && st.fathomApi, fatsecret: st.supabase && st.fatsecret, supabase: st.supabase }} />
         </div>
         <div className="card p-5 text-sm text-ink-300">
           <div className="label mb-3">Fuera del alcance de la app</div>
           <ul className="list-disc space-y-1.5 pl-5">
-            <li>Harbiz y FatSecret: sin integración (no hay datos conectados). Se mantienen como herramientas propias.</li>
+            <li>Harbiz: sin API ni integraciones (confirmado por su soporte). FatSecret: solo de los clientes que autoricen su cuenta.</li>
             <li>Fathom: no se guardan transcripciones completas, solo el resumen, citas breves y enlaces. Las llamadas que no son de clientes no se guardan con contenido.</li>
             <li>WhatsApp: no se envía nada automáticamente. Ningún cliente activo tiene teléfono en el CRM.</li>
             <li>Los análisis se calculan con reglas dentro de la app: los datos de salud no salen a servicios de IA externos.</li>

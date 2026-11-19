@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
-const PUBLIC = ['/login', '/auth/callback', '/api/webhooks', '/api/cron'];
+const PUBLIC = ['/login', '/auth/callback', '/api/webhooks', '/api/cron', '/conectar', '/api/fatsecret/callback'];
 
 export async function middleware(req: NextRequest) {
   if (PUBLIC.some((p) => req.nextUrl.pathname.startsWith(p))) return NextResponse.next();

@@ -13,7 +13,7 @@ export const dbReady = () => integrationStatus().supabase;
 export async function getClients(): Promise<ClientSummary[]> {
   const db = userDb();
   const [{ data: clients }, { data: programs }, { data: checkins }, { data: analyses }, { data: alerts }] = await Promise.all([
-    db.from('clients').select('id,full_name,email,status').order('full_name'),
+    db.from('clients').select('id,full_name,email,status,calorie_target').order('full_name'),
     db.from('program_status').select('*').order('start_date'),
     db.from('checkins').select('id,client_id,submitted_at,week_start').order('submitted_at', { ascending: false }),
     db.from('analyses').select('id,client_id,checkin_id,level,needs_action,reasons,positives,created_at'),
@@ -130,5 +130,15 @@ export async function getMeasurements(clientId?: string) {
   let q = userDb().from('measurements').select('*').order('measured_on');
   if (clientId) q = q.eq('client_id', clientId);
   const { data } = await q;
+  return data ?? [];
+}
+
+export async function getNutrition(clientId: string, from: string, to: string) {
+  const { data } = await userDb().from('nutrition_days').select('*').eq('client_id', clientId).gte('day', from).lte('day', to).order('day');
+  return data ?? [];
+}
+
+export async function getFatsecretStatus() {
+  const { data } = await userDb().from('fatsecret_status').select('*');
   return data ?? [];
 }

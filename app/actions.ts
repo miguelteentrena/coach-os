@@ -118,3 +118,30 @@ export async function assignCall(callId: string, clientId: string) {
   await refreshClientAlerts(clientId);
   revalidatePath('/', 'layout');
 }
+
+export async function createFatsecretInvite(clientId: string): Promise<string> {
+  const u = await requireCoach();
+  const { data, error } = await adminDb().from('fatsecret_invites').insert({ client_id: clientId }).select('id').single();
+  if (error) throw error;
+  await audit(u.id, 'fatsecret_invite', 'client', clientId);
+  const { headers } = await import('next/headers');
+  const host = headers().get('host');
+  return `https://${host}/conectar/fatsecret/${data.id}`;
+}
+
+export async function disconnectFatsecret(clientId: string) {
+  const u = await requireCoach();
+  // Se borra el permiso (token), no los datos ya importados.
+  await adminDb().from('fatsecret_links').delete().eq('client_id', clientId);
+  await audit(u.id, 'fatsecret_disconnect', 'client', clientId);
+  revalidatePath('/', 'layout');
+}
+
+export async function setCalorieTarget(clientId: string, form: FormData) {
+  const u = await requireCoach();
+  const v = Number(form.get('calorie_target'));
+  const target = Number.isFinite(v) && v >= 800 && v <= 6000 ? Math.round(v) : null;
+  await adminDb().from('clients').update({ calorie_target: target }).eq('id', clientId);
+  await audit(u.id, 'calorie_target', 'client', clientId, { target });
+  revalidatePath('/', 'layout');
+}
